@@ -56,3 +56,6 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# vscode - docker 연동 설정
+.vscode/

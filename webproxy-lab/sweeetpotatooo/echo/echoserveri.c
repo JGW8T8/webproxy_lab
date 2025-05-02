@@ -1,21 +1,31 @@
 #include "csapp.h"
 
+// echo 함수 정의
+void echo(int connfd) {
+    size_t n;
+    char buf[MAXLINE];
+    rio_t rio;
+
+    Rio_readinitb(&rio, connfd);
+    while ((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) {
+        printf("server received %d bytes\n", (int)n);
+        Rio_writen(connfd, buf, n);
+    }
+}
+
 int main(int argc, char **argv)
 {
     int listenfd, connfd;
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
     char client_hostname[MAXLINE], client_port[MAXLINE];
-    size_t n;
-    char buf[MAXLINE];
-    rio_t rio;
 
     if (argc != 2) {
         fprintf(stderr, "usage: %s <port>\n", argv[0]);
         exit(0);
     }
 
-    listenfd = Open_listenfd(argv[1]);  // 서버용
+    listenfd = Open_listenfd(argv[1]);
     while (1) {
         clientlen = sizeof(struct sockaddr_storage);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
@@ -23,11 +33,7 @@ int main(int argc, char **argv)
                     client_port, MAXLINE, 0);
         printf("Connected to (%s, %s)\n", client_hostname, client_port);
 
-        Rio_readinitb(&rio, connfd);
-        while ((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) {
-            printf("server received %d bytes\n", (int)n);
-            Rio_writen(connfd, buf, n);
-        }
+        echo(connfd);  // 분리된 함수 호출
         Close(connfd);
     }
     exit(0);

@@ -59,7 +59,7 @@ int main(int argc, char **argv)
 void doit(int fd); // 
 void read_requesthdrs(rio_t *rp); // 요청 헤더 읽기
 int parse_uri(char *uri, char *filename, char *cgiargs); // URI 분석
-void serve_static(int fd, char *filename, int filesize); // 정적 콘텐츠 제공
+void serve_static(int fd, char *filename, int filesize, int is_head); // 정적 콘텐츠 제공
 void serve_dynamic(int fd, char *filename, char *cgiargs); // 동적 콘텐츠 제공
 void get_filetype(char *filename, char *filetype); // 파일 타입 결정
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg); // 클라이언트 오류 처리
@@ -98,6 +98,7 @@ int main(int argc, char **argv)
 void doit(int fd)
 {
   int is_static;
+  int is_head;
   struct stat sbuf;
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char filename[MAXLINE], cgiargs[MAXLINE];
@@ -109,13 +110,19 @@ void doit(int fd)
   printf("Request headers: \n");
   printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);
-  if (strcasecmp(method, "GET")) {
+  if (strcasecmp(method, "GET") != 0 && strcasecmp(method, "HEAD") != 0) { // method != GET 또는 method != HEAD이면 에러
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
-    return;
+    return;                                                                                  
   }
+
+  if (strcasecmp(method, "HEAD") == 0)
+    is_head = 1;
+  else
+    is_head = 0;
+
   read_requesthdrs(&rio); // 요청 헤더 읽기
 
-  // GET 요청에서 받은 URI 분석 
+  // 요청에서 받은 URI 분석 
   is_static = parse_uri(uri, filename, cgiargs);
   if (stat(filename, &sbuf) < 0) {
     clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
@@ -127,7 +134,7 @@ void doit(int fd)
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);
+    serve_static(fd, filename, sbuf.st_size, is_head);
   }
 
   else {
@@ -201,7 +208,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
   }
 }
 
-void serve_static(int fd, char *filename, int filesize) 
+void serve_static(int fd, char *filename, int filesize, int is_head)
 {
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXBUF];
@@ -216,6 +223,9 @@ void serve_static(int fd, char *filename, int filesize)
   Rio_writen(fd, buf, strlen(buf));
   printf("Response headers: \n");
   printf("%s", buf);
+
+  if (is_head) // HEAD 요청이면 응답 바디 전송 안함
+    return;
 
   // 클라이언트에게 응답 바디 전송
   srcfd = Open(filename, O_RDONLY, 0);

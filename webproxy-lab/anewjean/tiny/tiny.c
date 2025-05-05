@@ -8,21 +8,23 @@
  */
 #include "csapp.h"
 
-void doit(int fd);
-void read_requesthdrs(rio_t *rp);
-int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
-void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
-void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
-                 char *longmsg);
+void doit(int fd); // 
+void read_requesthdrs(rio_t *rp); // 요청 헤더 읽기
+int parse_uri(char *uri, char *filename, char *cgiargs); // URI 분석
+void serve_static(int fd, char *filename, int filesize); // 정적 콘텐츠 제공
+void serve_dynamic(int fd, char *filename, char *cgiargs); // 동적 콘텐츠 제공
+void get_filetype(char *filename, char *filetype); // 파일 타입 결정
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg); // 클라이언트 오류 처리
+
+FILE *log_file;
 
 int main(int argc, char **argv)
 {
-  int listenfd, connfd;
-  char hostname[MAXLINE], port[MAXLINE];
-  socklen_t clientlen;
-  struct sockaddr_storage clientaddr;
+  // log_file = fopen("tiny.log", 'a');
+  int listenfd, connfd; // 서버 소켓fd와 클라이언트 소켓fd
+  char hostname[MAXLINE], port[MAXLINE]; // 클라이언트 호스트명과 포트
+  socklen_t clientlen; // 클라이언트 주소 길이
+  struct sockaddr_storage clientaddr; // 클라이언트 주소 구조체
 
   /* Check command line args */
   if (argc != 2)
@@ -31,19 +33,21 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  listenfd = Open_listenfd(argv[1]);
+  listenfd = Open_listenfd(argv[1]); // 리스닝 소켓 생성
   while (1)
   {
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); // line:netp:tiny:accept
-    Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
-    printf("Accepted connection from (%s, %s)\n", hostname, port);
-    doit(connfd);  // line:netp:tiny:doit
-    Close(connfd); // line:netp:tiny:close
+    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); // 클라이언트의 연결 요청 수락
+    Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0); // 클라이언트 주소 정보 가져오기
+    printf("Accepted connection from (%s, %s)\n", hostname, port); // 클라이언트의 연결 정보 출력
+    // fprintf(log_file, "Accepted connection from (%s, %s)\n", hostname, port); 
+    doit(connfd);  // 클라이언트 요청 처리
+    Close(connfd); // 클라이언트 소켓 닫기
+    // fflush(log_file);
   }
 }
 
-void doit(int fd) 
+void doit(int fd)
 {
   int is_static;
   struct stat sbuf;
@@ -61,7 +65,7 @@ void doit(int fd)
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
     return;
   }
-  read_requesthdrs(&rio);
+  read_requesthdrs(&rio); // 요청 헤더 읽기
 
   // GET 요청에서 받은 URI 분석 
   is_static = parse_uri(uri, filename, cgiargs);
@@ -71,14 +75,15 @@ void doit(int fd)
   }
 
   if (is_static) {
-    if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) {
+    if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) { // 파일이 정적이고 읽기 권한이 없으면
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
       return;
     }
     serve_static(fd, filename, sbuf.st_size);
   }
+
   else {
-    if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
+    if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) { // 파일이 동적이고 실행 권한이 없으면
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
       return;
     }
@@ -123,8 +128,8 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
 {
   char *ptr;
   // 정적 콘텐츠
-  if (!strstr(uri, "cgi-bin")) {
-    strcpy(cgiargs, "");
+  if (!strstr(uri, "cgi-bin")) { // 'cgi-bin'이 없으면 정적 콘텐츠
+    strcpy(cgiargs, ""); 
     strcpy(filename, ".");
     strcat(filename, uri);
     if (uri[strlen(uri)-1] == '/') {
@@ -134,17 +139,17 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
   }
   // 동적 콘텐츠
   else {
-    ptr = index(uri, '?');
-    if (ptr) {
-      strcpy(cgiargs, ptr+1);
-      *ptr = '\0';
+    ptr = index(uri, '?'); // '?'의 위치 찾기
+    if (ptr) { // '?'가 있으면
+      strcpy(cgiargs, ptr+1); // '?' 다음의 문자열을 cgiargs에 복사
+      *ptr = '\0'; // '?'를 '\0'으로 바꿔서 ? 기점으로 URI 나누기
     }
     else {
-      strcpy(cgiargs, "");
-      strcpy(filename, ".");
-      strcat(filename, uri);
-      return 0;
+      strcpy(cgiargs, ""); // '?'가 없으면 cgiargs는 빈 문자열
     }
+    strcpy(filename, "."); // filenamae = "." 으로 초기화
+    strcat(filename, uri); // filename에 uri를 붙임 -> ./uri
+    return 0;
   }
 }
 

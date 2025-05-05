@@ -103,10 +103,12 @@ void doit(int fd)
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char filename[MAXLINE], cgiargs[MAXLINE];
   rio_t rio;
+  size_t n;
 
   // 요청 읽기
   Rio_readinitb(&rio, fd);
-  Rio_readlineb(&rio, buf, MAXLINE);
+  if (!(Rio_readlineb(&rio, buf, MAXLINE))) return; // 요청 라인이 없으면 종료
+  printf(buf); // 요청 라인 에코
   printf("Request headers: \n");
   printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);

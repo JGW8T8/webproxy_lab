@@ -5,7 +5,7 @@
  *   - Fixed bug in sio_ltoa that didn't cover negative numbers
  *
  * Updated 2/2016 droh:
- *   - Updated open_clientfd and open_listenfd to fail more gracefully
+ *   - Updated open_clientfd and open_listenfd to faiFl more gracefully
  *
  * Updated 8/2014 droh: 
  *   - New versions of open_clientfd and open_listenfd are reentrant and

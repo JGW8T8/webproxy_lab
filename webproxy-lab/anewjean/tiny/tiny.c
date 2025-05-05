@@ -55,6 +55,8 @@ int main(int argc, char **argv)
  *   - Fixed sprintf() aliasing issue in serve_static(), and clienterror().
  */
 #include "csapp.h"
+#include <sys/wait.h>
+#include <signal.h>
 
 void doit(int fd); // 
 void read_requesthdrs(rio_t *rp); // 요청 헤더 읽기
@@ -63,12 +65,21 @@ void serve_static(int fd, char *filename, int filesize, int is_head); // 정적 
 void serve_dynamic(int fd, char *filename, char *cgiargs); // 동적 콘텐츠 제공
 void get_filetype(char *filename, char *filetype); // 파일 타입 결정
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg); // 클라이언트 오류 처리
+void sigchild_handler(int sig); // SIGCHLD 핸들러
 
 FILE *log_file;
 
+void sigchild_handler(int sig)
+{
+  int olderrno = errno; // 현재 errno 저장
+  while (waitpid(-1, 0, WNOHANG) > 0); // 자식 프로세스 종료 대기
+  errno = olderrno; // 이전 errno 복원
+}
+
 int main(int argc, char **argv)
 {
-  // log_file = fopen("tiny.log", 'a');
+  Signal(SIGCHLD, sigchild_handler); // SIGCHLD 시그널이 발생했을 때 호출될 핸들러(sigchild_handler) 등록
+  
   int listenfd, connfd; // 서버 소켓fd와 클라이언트 소켓fd
   char hostname[MAXLINE], port[MAXLINE]; // 클라이언트 호스트명과 포트
   socklen_t clientlen; // 클라이언트 주소 길이
@@ -266,6 +277,6 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
     Dup2(fd, STDOUT_FILENO); // 클라이언트에게 표준 출력 리다이렉트
     Execve(filename, emptylist, environ); // CGI 프로그램 실행
   }
-  Wait(NULL); // 자식 프로세스 종료 대기
+  // Wait(NULL); // 자식 프로세스 종료 대기
 }
 >>>>>>> 6252864af1d9b5dd381a920716b7c7766641a1ab

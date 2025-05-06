@@ -13,7 +13,7 @@ static const char *user_agent_hdr =
     "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 "
     "Firefox/10.0.3\r\n";
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) { //main() 서버 초기화 및 요청 수락
   int listenfd, connfd;
   socklen_t clientlen;
   struct sockaddr_storage clientaddr;
@@ -27,11 +27,11 @@ int main(int argc, char **argv) {
 
   listenfd = Open_listenfd(argv[1]);
 
-  while (1) {
+  while (1) { //지정한 포트에서 클라이언트의 연결 요청을 계속 수락합니다. /연결된 소켓을 func() 함수로 넘겨 요청을 처리합니다.
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-    func(connfd);
-    Close(connfd);
+    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); //클라이언트 연결 수락
+    func(connfd); //요청 처리
+    Close(connfd); // 연결 종료
   }
 }
 

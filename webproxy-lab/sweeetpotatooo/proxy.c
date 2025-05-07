@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <signal.h>
+#include <pthread.h>
 
 #include "csapp.h"
 #include "cache.h"
@@ -20,6 +21,7 @@ static const int is_local_test = 1;
 static const char *user_agent_hdr =
     "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n";
 
+pthread_rwlock_t cache_lock;
 
 int main(int argc, char **argv)
 {
@@ -133,8 +135,6 @@ void add_missing_headers(int serverfd, int host, int conn, int proxy_conn, int u
 
   // Host 헤더가 없었다면 hostname, port를 사용해 추가
   if (!host) {
-    if (!is_local_test)
-      hostname = "52.79.234.188";  // AWS 예외 처리
     sprintf(buf, "Host: %s:%s\r\n", hostname, port);
     Rio_writen(serverfd, buf, strlen(buf));
   }
@@ -220,6 +220,8 @@ void doit(int clientfd)
   char *response_ptr;
   rio_t request_rio, response_rio;
 
+  pthread_rwlock_init(&cache_lock, NULL);
+
   // 클라이언트 요청 읽기
   Rio_readinitb(&request_rio, clientfd);
   Rio_readlineb(&request_rio, request_buf, MAXLINE);
@@ -241,13 +243,15 @@ void doit(int clientfd)
   CachedObject *cached_object = find_cache(path);
   if (cached_object)
   {
+    pthread_rwlock_rdlock(&cache_lock);
     send_cache(cached_object, clientfd); // 클라이언트에게 캐시 전송
     read_cache(cached_object);           // LRU 갱신
+    pthread_rwlock_unlock(&cache_lock);
     return;
   }
 
   // 서버 연결
-  serverfd = is_local_test ? Open_clientfd(hostname, port) : Open_clientfd("52.79.234.188", port);
+  serverfd = Open_clientfd(hostname, port);
   if (serverfd < 0)
   {
     clienterror(serverfd, method, "502", "Bad Gateway", "Failed to establish connection with the end server");
@@ -279,11 +283,13 @@ void doit(int clientfd)
   // 캐싱 가능한 경우 캐시에 저장
   if (content_length <= MAX_OBJECT_SIZE)
   {
+    pthread_rwlock_wrlock(&cache_lock);
     CachedObject *Cache = (CachedObject *)calloc(1, sizeof(CachedObject));
     Cache->response_ptr = response_ptr;
     Cache->content_length = content_length;
     strcpy(Cache->path, path);
     write_cache(Cache);
+    pthread_rwlock_unlock(&cache_lock);
   }
   else
     free(response_ptr);  // 캐싱 안 하는 경우 메모리 해제
